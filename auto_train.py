@@ -1,7 +1,7 @@
 import torch
 from datasets import load_dataset
 from transformers import AutoTokenizer, AutoModelForCausalLM, TrainingArguments, Trainer, DataCollatorForLanguageModeling
-
+from transformers import BitsAndBytesConfig
 from peft import get_peft_model, LoraConfig, TaskType
 
 model_n="Qwen/Qwen1.5-0.5B"
@@ -21,13 +21,25 @@ def tokenize(example):
     return tokenizer(example["text"],truncation=True,padding="max_length",max_length=512)
 
 tokenized=dataset.map(tokenize,batched=True)
+bnb_config = BitsAndBytesConfig(
+    load_in_8bit=True,
+    llm_int8_threshold=6.0,
+    llm_int8_has_fp16_weight=True
+)
 
 model=AutoModelForCausalLM.from_pretrained(
-    model_n,load_in_8bit=True,device_map="auto",trust_remote_code=True
+    model_n,
+    quantization_config=bnb_config,
+    device_map="auto",
+    trust_remote_code=True
 )
 lora_config=LoraConfig(
-    r=8,loara_alpha=32,target_modules=["q_proj","v_proj"],
-    lora_dropout=0.1,bias="none",tasktype=TaskType.CAUSAL_LM
+    r=8,
+    lora_alpha=32,
+    target_modules=["q_proj","v_proj"],
+    lora_dropout=0.1,
+    bias="none",
+    tasktype=TaskType.CAUSAL_LM
 )
 model=get_peft_model(model,lora_config)
 
