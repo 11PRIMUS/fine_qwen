@@ -1,11 +1,10 @@
 import torch
 from datasets import load_dataset
 from transformers import AutoTokenizer, AutoModelForCausalLM, TrainingArguments, Trainer, DataCollatorForLanguageModeling
-from transformers import BitsAndBytesConfig
 from peft import get_peft_model, LoraConfig, TaskType
-
-model_n="Qwen/Qwen1.5-0.5B"
-data_path="emotion1.jsonl"
+    
+model_n="sshleifer/tiny-gpt2"
+data_path="em10000.jsonl"
 dataset=load_dataset("json",data_files=data_path,split="train")
 
 def f_prompt(example):
@@ -21,30 +20,24 @@ def tokenize(example):
     return tokenizer(example["text"],truncation=True,padding="max_length",max_length=512)
 
 tokenized=dataset.map(tokenize,batched=True)
-bnb_config = BitsAndBytesConfig(
-    load_in_8bit=True,
-    llm_int8_threshold=6.0,
-    llm_int8_has_fp16_weight=True
-)
 
 model=AutoModelForCausalLM.from_pretrained(
     model_n,
-    quantization_config=bnb_config,
     device_map="auto",
     trust_remote_code=True
 )
 lora_config=LoraConfig(
     r=8,
     lora_alpha=32,
-    target_modules=["q_proj","v_proj"],
+    target_modules=["c_attn", "c_proj"], #
     lora_dropout=0.1,
     bias="none",
-    tasktype=TaskType.CAUSAL_LM
+    task_type=TaskType.CAUSAL_LM
 )
 model=get_peft_model(model,lora_config)
 
 args=TrainingArguments( #training
-    output_dir="emotion2",
+    output_dir="emotion",
     per_device_train_batch_size=4,
     num_train_epochs=3,
     learning_rate=2e-4,
